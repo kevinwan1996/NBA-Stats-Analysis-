@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MaxNLocator, IndexFormatter
 import re
+import sqlite3
 
 """gets the counting per game stats of all players in a current year, sort by
 any per game counting stat you choose"""
@@ -202,7 +203,7 @@ def plot_dataframe(df, statistic, plot_name, x_label, y_label, x_ticks, plot_typ
 	for tick in fig.xaxis.get_majorticklabels():
 		tick.set_horizontalalignment("right")
 
-	fig.get_figure().savefig("/Users/Kevin/Documents/work/python_bot/plot.jpg")
+	# fig.get_figure().savefig("/Users/Kevin/Documents/work/python_bot/plot.jpg")
 	#show the plot
 	plt.tight_layout()
 	plt.show()
@@ -216,8 +217,7 @@ def compare_players(df1, df2, p1, p2, title, statistic):
 	L.get_texts()[1].set_text(p2)
 	plt.show()
 
-# def get_accolades(player_link):
-
+#get all personal info including player name, height/weight, birthplace, etc...
 def get_info(player_link):
 
 	url = 'http://www.basketball-reference.com/players/'+player_link[0:1]+'/'+player_link+'.html'
@@ -270,7 +270,8 @@ def get_info(player_link):
 		if len(p.findAll('strong')) > 0 and ''.join(filter(whitelist.__contains__, p.findAll('strong')[0].getText().strip())) == 'Hall of Fame':
 			player_info[''.join(filter(whitelist.__contains__,p.findAll('strong')[0].getText().strip()))] = ''.join(filter(calendar_list.__contains__, p.findAll('strong')[0].next_sibling.strip()))
 
-	print player_info
+	return player_info
+
 #return the player's nicknames as listed on BBRef
 def get_nicknames(player_link):
 	url = 'http://www.basketball-reference.com/players/'+player_link[0:1]+'/'+player_link+'.html'
@@ -279,21 +280,62 @@ def get_nicknames(player_link):
 
 	return soup.find(id="meta").findAll('p')[1].getText()
 
+#get the accolades the player has won
+def get_accolades(player_link):
+	url = 'http://www.basketball-reference.com/players/'+player_link[0:1]+'/'+player_link+'.html'
+	html = urlopen(url)
+	soup = BeautifulSoup(html, 'lxml')	
+	
+	accomplishments = soup.find(id="bling")
+
+	list_of_accolades = []
+	for li in accomplishments.findAll('li'):
+		list_of_accolades.append(li.find('a').getText())
+	return list_of_accolades
+
+
+#takes too long to generate a dictionary every run, so store links and names into a Database
+def create_link_name_db(path_to_db, player_dict, table_name, column_links='LINK', column_name='NAME'):
+	conn = sqlite3.connect(path_to_db)
+	c = conn.cursor()
+	c.execute("create table {name} ({column} TEXT)".format(name=table_name, column=column_name))
+	c.execute("alter table {name} add column '{column}' TEXT".format(name=table_name, column=column_links))
+	
+	for key in player_dict:
+		c.execute("Insert Into {name} ({column_1}, {column_2}) Values (?, ?)".format(name=table_name, column_1=column_name, column_2=column_links), [key.lower(), player_dict[key]])
+	conn.commit()
+	conn.close()
+
+#query the database for the player link
+def get_player_link(path_to_db, player_name, table_name, column_links='LINK', column_name='NAME'):
+	conn = sqlite3.connect(path_to_db)
+	c = conn.cursor()
+	c.execute("Select {column_links} from {table_name} where {column_name}= ? ".format(table_name=table_name, column_name=column_name, column_links=column_links), [player_name.lower()])
+	all_rows = c.fetchall()[0]	
+	return (all_rows)[0]
+
 
 if __name__=='__main__':
 	# get_player_stats_year(2017, 'PS/G')
 	# dict_of_players()
 	# data, player = get_table_from_comments('bryanko01','div_advanced')
-	data, player = get_individual_player_career_per_game_stats('jordami01')
+	# data, player = get_individual_player_career_per_game_stats('bryanko01')
 	# print data
 	# data2, player2 = get_table_from_comments('curryst01', 'div_advanced')
 	# compare_players(data,data2, player, player2, 'Kobe vs. Curry', 'VORP')
 	# print get_individual_player_career_per_game_stats('curryst01')
 	# get_multi_header_table('curryst01', 'div_playoffs_advanced_pbp')
-	# data = get_individual_player_career_per_game_stats('bryanko01')
 	# data = get_all_players_stats_year(2006, 'PS/G').head()
-	plot_dataframe(data, 'PTS', 'Michael Jordan PTS', 'Season', 'PTS', 'Season', 'line')
-	get_info('bryanko01')
+	# db_location = '/Users/Kevin/Desktop/NBA_links_names.sqlite'
+	# print get_accolades('jordami01')
+	# d = dict_of_players(2014,2015)
+	# create_link_name_db('/Users/Kevin/Desktop/test_nba.sqlite', d, 'PlayerLinks')
+	a =  get_player_link('/Users/Kevin/Desktop/test_nba.sqlite', 'pAUl GeoRGE', 'PlayerLinks')
+	# print a
+	data, player = get_individual_player_career_per_game_stats(a)
+	# print data
+	plot_dataframe(data, 'PTS', 'Paul George PTS', 'Season', 'PTS', 'Season', 'line')
+
 
 
 
