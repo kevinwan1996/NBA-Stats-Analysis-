@@ -10,15 +10,16 @@ from matplotlib import style
 import numpy as np
 from sklearn.cluster import KMeans
 from sklearn.cluster import MeanShift
+from mpl_toolkits.mplot3d import Axes3D
 
 
 """gets the counting per game stats of all players in a current year, sort by
 any per game counting stat you choose"""
 
-def get_all_players_stats_year(year, sort_by='PS/G'):
+def get_all_players_stats_year(year, stat_type, sort_by='Player'):
 	""" will return a dataframe that consists of all the stats of every player for a single year """
 
-	url = 'http://www.basketball-reference.com/leagues/NBA_'+str(year)+'_per_game.html'
+	url = 'http://www.basketball-reference.com/leagues/NBA_'+str(year)+'_'+str(stat_type)+'.html'
 	html = urlopen(url)
 	soup = BeautifulSoup(html, 'lxml')
 
@@ -37,10 +38,12 @@ def get_all_players_stats_year(year, sort_by='PS/G'):
 			player_data.remove(player)
 
 	traded_players = []
-	for player in player_data:
-		if 'TOT' in player:
-			traded_players.append(player)
-			player_data.remove(player)
+	to_remove = []
+	for i in range(len(player_data):
+		if 'TOT' in player_data[i]:
+			traded_players.append(player_data[i])
+			player_data.remove(player[i])
+			names.append
 
 	#add all of the teams into team played for instead of just "TOT"
 	for traded in traded_players:
@@ -356,8 +359,8 @@ def statistic_df(df, year, statistic_1, statistic_2):
 	return df
 
 #get dataframe of two specific stats for one position ...SLOW right now
-def position_statistic_df(year, statistic_1, statistic_2, position):
-	df = get_all_players_stats_year(year, 'PS/G')
+def position_statistic_df(year, statistic_1, statistic_2, position, stat_type):
+	df = get_all_players_stats_year(year, stat_type, 'PTS')
 	df = position_dataframe(df, year, position)
 	df = statistic_df(df, year, statistic_1, statistic_2)
 	return df
@@ -399,7 +402,7 @@ def KMeans_classify(array,clusters):
 
 	return player_labels
 
-def Mean_Shift_classify(array):
+def Mean_Shift_classify(array, title='test graph', x_label='test label', y_label='test label 2'):
 	players = []
 	stats = []
 	for val in array:
@@ -419,21 +422,104 @@ def Mean_Shift_classify(array):
 	for i in range(len(labels)):
 		player_labels[players[i]] = labels[i]
 
-	print(cluster_centers)
-	n_clusters_ = len(np.unique(labels))
-	print("Number of estimated clusters:", n_clusters_)
+	# print(cluster_centers)
+	# n_clusters_ = len(np.unique(labels))
+	# print("Number of estimated clusters:", n_clusters_)
 
-	colors = 10*['r','g','b','c','k','y','m']
-	fig = plt.figure()
-	ax = fig.add_subplot(111)
+	# colors = 10*['r','g','b','c','k','y','m']
+	# fig = plt.figure()
+	# ax = fig.add_subplot(111)
+	# plt.xlabel(x_label, fontsize=16)
+	# plt.ylabel(y_label, fontsize=16)
+	# fig.suptitle(title, fontsize=20)
 
-	for i in range(len(stats)):
-		ax.scatter(stats[i][0], stats[i][1], c=colors[labels[i]], marker='o')
-	ax.scatter(cluster_centers[:,0],cluster_centers[:,1],
-            marker="x",color='k', s=150, linewidths = 5, zorder=10)
+	# for i in range(len(stats)):
+	# 	ax.scatter(stats[i][0], stats[i][1], c=colors[labels[i]], marker='o')
+	# ax.scatter(cluster_centers[:,0],cluster_centers[:,1],
+    #         marker="x",color='k', s=150, linewidths = 5, zorder=10)
+	# plt.show()
+
+	return player_labels, cluster_centers
+
+def change_in_tiers(year_1, year_2):
+	X = []
+	Y = []
+	W = []
+	M = []
+	for year in range(year_1, year_2 + 1):
+		Z = df_to_array(position_statistic_df(year, '3P%', '3P', 'Forward', 'totals'))
+		player_labels, cluster_centers = Mean_Shift_classify(Z)
+		X.append(cluster_centers[len(cluster_centers)-1])
+		Y.append(cluster_centers[len(cluster_centers)-2])
+		W.append(cluster_centers[len(cluster_centers)-3])
+		M.append(cluster_centers[len(cluster_centers)-4])
+
+	i = 0
+	# fig = plt.figure()
+	# ax = fig.add_subplot(111, projection='3d')
+	years = []
+	tier_1 = []
+	tier_2 = []
+	tier_3 = []
+	tier_4 = []
+	for year in range(year_1, year_2 + 1):
+		tier_1.append(X[i][1])
+		tier_2.append(Y[i][1])
+		tier_3.append(W[i][1])
+		tier_4.append(M[i][1])
+		years.append(year)
+		i+=1
+	plt.xlabel('Year')
+	plt.ylabel('3PM')
+	plt.suptitle('Forward 3P Makes by Tier From 1980-2017')
+	plt.plot(years, tier_1, label='Tier 1')
+	plt.plot(years, tier_2, label='Tier 2')
+	plt.plot(years, tier_3, label='Tier 3')
+	plt.plot(years, tier_4, label='Tier 4')
+	plt.legend()
 	plt.show()
-	
-	return player_labels
+
+def get_2pa_vs_3pa(year_1, year_2):
+	ratio_array = []
+	years = []
+	for year in range(year_1, year_2):
+		threes = 0
+		twos = 0
+		df = get_all_players_stats_year(year ,'totals', 'PTS')
+		twos = df['2PA'].sum()
+		threes = df['3PA'].sum()
+		total = twos + threes
+		ratio_array.append(float(threes) / twos)
+		years.append(year)
+	plt.xlabel('Year')
+	plt.ylabel('Ratio of 3PA/Total Attempts')
+	plt.suptitle('3PA/Total Attempts from 1980-2017')
+	plt.plot(years, ratio_array, label='3PA/Total Attempts')
+	plt.legend()
+	plt.show()
+
+def get_win_shares(df, player_name):
+	player =  df.loc[df['Player'] == player_name][0]
+	return float(player['WS'])
+
+def average_win_shares(year_1, year_2):
+	W_S = 0.0
+	total_players = 0
+	for year in range(year_1, year_2 + 1):
+		Z = (position_statistic_df(year, '3P%', '3P', 'Guard', 'totals'))
+		Y = (position_statistic_df(year, '3P%', '3P', 'Forward', 'totals'))
+		Z = df_to_array(Z.append(Y))
+		threes, centers = Mean_Shift_classify(Z, '1980 Three Point Shooting Tiers Forwards' ,'3P%', '3PM')
+		df = get_all_players_stats_year(year, 'advanced')
+		for key in threes:
+			if threes[key] == len(centers) - 1 or threes[key] == len(centers) - 2:
+				total_players += 1
+				print key
+				W_S +=  get_win_shares(df, key)
+				print W_S
+	return float(W_S)/total_players
+
+
 # def numpy_statistic_array(year, statistic_1, statistic_2, position):
 if __name__=='__main__':
 	# get_player_stats_year(2017, 'PS/G')
@@ -457,18 +543,33 @@ if __name__=='__main__':
 	# plot_dataframe(data, 'PTS', 'Paul George PTS', 'Season', 'PTS', 'Season', 'line')
 	# df = position_dataframe(2015, 'Guard')
 	# print statistic_array(2015, 'AST', 'TOV') 
-	style.use('ggplot')
+	# style.use('ggplot')
 	# X = df_to_array(position_statistic_df(2015, 'AST', 'TOV', 'Guard'))
 
 	# Y = df_to_array(position_statistic_df(2015, 'FG%', 'PS/G', 'Guard'))
-	Z = df_to_array(position_statistic_df(2015, '3P%', '3P', 'Guard'))
+	# Z = df_to_array(position_statistic_df(2017, '3P%', '3P', 'Guard', 'totals'))
 	# W = df_to_array(position_statistic_df(2015, 'ORB', 'DRB', 'Guard'))
-
+	# Z = (position_statistic_df(2017, '3P%', '3P', 'Guard', 'totals'))
+	# Y = (position_statistic_df(2017, '3P%', '3P', 'Forward', 'totals'))
+	# Z = df_to_array(Z.append(Y))
 	# plt.scatter(X[:, 1],X[:, 2], s=15, c = 'b', alpha=0.7, linewidths = 5, zorder = 10)
 	# plt.show()
 	# threes = KMeans_classify(Z, 4)
-	threes = Mean_Shift_classify(Z)
-	print threes['Stephen Curry']
+	# threes, centers = Mean_Shift_classify(Z, '1980 Three Point Shooting Tiers Forwards' ,'3P%', '3PM')
+	# for key in threes:
+	# 	if threes[key] == len(centers) - 1 or threes[key] == len(centers) - 2:
+	# 		print key
+	# df = get_all_players_stats_year(2017, 'advanced')
+	# get_win_shares(df, 'Stephen Curry')
+	# print threes['Stephen Curry']
+	# print centers
+	# print threes['Stephen Curry']
+	# change_in_tiers(1980,2017)
+	# get_2pa_vs_3pa(1980,2017)
+	print average_win_shares(1997,1998)
+	
+	# df = get_all_players_stats_year(1997, 'advanced')
+	# print df.loc[df['Player'] == 'Brooks Thompson']
 
 
 
